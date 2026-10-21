@@ -1,8 +1,8 @@
 import sqlite3
 import streamlit as st
-from google import genai
+from groq import Groq
 
-MODEL = "gemini-3.8-flash"
+MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
 
 st.set_page_config(page_title="AI Study Companion", page_icon="📚")
 
@@ -24,14 +24,21 @@ run("""CREATE TABLE IF NOT EXISTS history(
 
 
 def ask_ai(prompt, feature, topic):
-    try:
-        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-        text = client.models.generate_content(model=MODEL, contents=prompt).text
-    except Exception as e:
-        return f"Error: {e}"
-    run("INSERT INTO history(feature,topic,answer) VALUES(?,?,?)",
-        (feature, topic[:100], text))
-    return text
+    last_error = ""
+    for model in MODELS:
+        try:
+            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+            reply = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = reply.choices[0].message.content
+            run("INSERT INTO history(feature,topic,answer) VALUES(?,?,?)",
+                (feature, topic[:100], text))
+            return text
+        except Exception as e:
+            last_error = str(e)
+    return f"Error: {last_error}"
 
 
 st.title("📚 AI Study Companion")
